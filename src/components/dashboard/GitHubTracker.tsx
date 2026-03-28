@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   GitBranch, GitCommit, Star, GitFork, AlertCircle, Users, Code,
   ExternalLink, Loader2, Eye, Tag, Calendar, Clock, GitPullRequest,
@@ -231,14 +230,17 @@ const GitHubTracker = () => {
     setData(null);
 
     try {
-      const { data: result, error: fnError } = await supabase.functions.invoke("github-repo", {
-        body: { repoUrl: url },
+      const res = await fetch("/api/github-repo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoUrl: url }),
       });
-      if (!fnError && result && !result.error) {
+      if (res.ok) {
+        const result = await res.json();
         setData(result);
         return;
       }
-      console.log("Edge function unavailable, using direct GitHub API");
+      console.log("Server API unavailable, using direct GitHub API");
       const match = url.match(/github\.com\/([^\/]+)\/([^\/\s#?]+)/);
       if (!match) throw new Error("Invalid GitHub URL");
       const clientResult = await fetchFromClient(match[1], match[2].replace(/\.git$/, ""));

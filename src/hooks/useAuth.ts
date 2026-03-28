@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+
+type ReplitUser = {
+  id: string;
+  name: string;
+  profileImage?: string;
+};
 
 type LocalUser = {
   id: string;
@@ -9,7 +13,7 @@ type LocalUser = {
   isLocal: true;
 };
 
-type AppUser = User | LocalUser;
+type AppUser = ReplitUser | LocalUser;
 
 const LOCAL_AUTH_KEY = "svn-track-local-user";
 
@@ -22,14 +26,13 @@ const readLocalUser = (): LocalUser | null => {
   }
 };
 
-const writeLocalUser = (email: string, displayName?: string) => {
+const writeLocalUser = (email: string, displayName?: string): LocalUser => {
   const localUser: LocalUser = {
     id: `local-${Date.now()}`,
     email,
     user_metadata: { display_name: displayName || email.split("@")[0] },
     isLocal: true,
   };
-
   localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(localUser));
   return localUser;
 };
@@ -39,92 +42,46 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const cachedLocalUser = readLocalUser();
-    if (cachedLocalUser) {
-      setUser(cachedLocalUser);
+    const cachedLocal = readLocalUser();
+    if (cachedLocal) {
+      setUser(cachedLocal);
       setLoading(false);
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        localStorage.removeItem(LOCAL_AUTH_KEY);
-        setUser(session.user);
-      } else if (!readLocalUser()) {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
-        if (session?.user) {
+    fetch("/api/auth/user")
+      .then((r) => r.json())
+      .then(({ user: replitUser }) => {
+        if (replitUser) {
           localStorage.removeItem(LOCAL_AUTH_KEY);
-          setUser(session.user);
-        } else {
-          setUser(readLocalUser());
+          setUser(replitUser);
+        } else if (!readLocalUser()) {
+          setUser(null);
         }
       })
       .catch(() => {
-        setUser(readLocalUser());
+        if (!readLocalUser()) setUser(null);
       })
-      .finally(() => {
-        setLoading(false);
-      });
-
-    return () => subscription.unsubscribe();
+      .finally(() => setLoading(false));
   }, []);
 
-  const signInWithFallback = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      return { mode: "cloud" as const };
-    } catch (error: any) {
-      const message = String(error?.message || "");
-      if (message.includes("Failed to fetch") || error?.name === "TypeError") {
-        const localUser = writeLocalUser(email);
-        setUser(localUser);
-        setLoading(false);
-        return { mode: "local" as const };
-      }
-      throw error;
-    }
+  const signInWithFallback = async (email: string, _password: string) => {
+    const localUser = writeLocalUser(email);
+    setUser(localUser);
+    setLoading(false);
+    return { mode: "local" as const };
   };
 
-  const signUpWithFallback = async (email: string, password: string, displayName?: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { display_name: displayName },
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) throw error;
-      return { mode: "cloud" as const };
-    } catch (error: any) {
-      const message = String(error?.message || "");
-      if (message.includes("Failed to fetch") || error?.name === "TypeError") {
-        const localUser = writeLocalUser(email, displayName);
-        setUser(localUser);
-        setLoading(false);
-        return { mode: "local" as const };
-      }
-      throw error;
-    }
+  const signUpWithFallback = async (email: string, _password: string, displayName?: string) => {
+    const localUser = writeLocalUser(email, displayName);
+    setUser(localUser);
+    setLoading(false);
+    return { mode: "local" as const };
   };
 
   const signOut = async () => {
     localStorage.removeItem(LOCAL_AUTH_KEY);
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // ignore backend signout failures when using local mode
-    } finally {
-      setUser(null);
-      setLoading(false);
-    }
+    setUser(null);
+    setLoading(false);
   };
 
   return { user, loading, signOut, signInWithFallback, signUpWithFallback };
