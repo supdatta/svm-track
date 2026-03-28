@@ -42,3 +42,5 @@ externalPort = 3001
 
 [userenv.shared]
 VITE_GEMINI_API_KEY = "AIzaSyAsO3AcCTsTtjYUXroabNbFU5BqcF-3wtU"
+VITE_SUPABASE_URL = "https://tfexsuwrpnsvwjrhnuje.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmZXhzdXdycG5zdndqcmhudWplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NTgwNzksImV4cCI6MjA4NzMzNDA3OX0.25MTXr4Fq1da5LdRN2DkeUmHnVSgIL_NuTDHvUqI0cM"

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   TrendingUp, TrendingDown, DollarSign, Calendar, Users, Activity,
-  AlertTriangle, CheckCircle, Info, Clock, BarChart3, RefreshCw,
+  AlertTriangle, CheckCircle, Info, Clock, BarChart3, RefreshCw, Layers, ArrowLeft,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -43,6 +43,7 @@ const MetricCard = ({ label, value, icon: Icon, sub, trend }: {
 
 const SPMDashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const passedProject = (location.state as any)?.project;
 
   const [project] = useState(() => ({
@@ -171,6 +172,16 @@ const SPMDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Back to Projects */}
+      <button
+        onClick={() => navigate("/dashboard/projects")}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        <Layers className="w-3.5 h-3.5" />
+        Back to Projects
+      </button>
+
       {/* Project Header */}
       <div className="glass-card p-6">
         <div className="flex items-start justify-between">

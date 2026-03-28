@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
-
-type ReplitUser = {
-  id: string;
-  name: string;
-  profileImage?: string;
-};
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 type LocalUser = {
   id: string;
@@ -13,7 +9,7 @@ type LocalUser = {
   isLocal: true;
 };
 
-type AppUser = ReplitUser | LocalUser;
+type AppUser = User | LocalUser;
 
 const LOCAL_AUTH_KEY = "svn-track-local-user";
 
@@ -48,40 +44,84 @@ export const useAuth = () => {
       setLoading(false);
     }
 
-    fetch("/api/auth/user")
-      .then((r) => r.json())
-      .then(({ user: replitUser }) => {
-        if (replitUser) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        localStorage.removeItem(LOCAL_AUTH_KEY);
+        setUser(session.user);
+      } else if (!readLocalUser()) {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (session?.user) {
           localStorage.removeItem(LOCAL_AUTH_KEY);
-          setUser(replitUser);
-        } else if (!readLocalUser()) {
-          setUser(null);
+          setUser(session.user);
+        } else {
+          setUser(readLocalUser());
         }
       })
       .catch(() => {
-        if (!readLocalUser()) setUser(null);
+        setUser(readLocalUser());
       })
       .finally(() => setLoading(false));
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithFallback = async (email: string, _password: string) => {
-    const localUser = writeLocalUser(email);
-    setUser(localUser);
-    setLoading(false);
-    return { mode: "local" as const };
+  const signInWithFallback = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return { mode: "cloud" as const };
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      if (message.includes("Failed to fetch") || error?.name === "TypeError") {
+        const localUser = writeLocalUser(email);
+        setUser(localUser);
+        setLoading(false);
+        return { mode: "local" as const };
+      }
+      throw error;
+    }
   };
 
-  const signUpWithFallback = async (email: string, _password: string, displayName?: string) => {
-    const localUser = writeLocalUser(email, displayName);
-    setUser(localUser);
-    setLoading(false);
-    return { mode: "local" as const };
+  const signUpWithFallback = async (email: string, password: string, displayName?: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: displayName },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      return { mode: "cloud" as const };
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      if (message.includes("Failed to fetch") || error?.name === "TypeError") {
+        const localUser = writeLocalUser(email, displayName);
+        setUser(localUser);
+        setLoading(false);
+        return { mode: "local" as const };
+      }
+      throw error;
+    }
   };
 
   const signOut = async () => {
     localStorage.removeItem(LOCAL_AUTH_KEY);
-    setUser(null);
-    setLoading(false);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore signout failures in local mode
+    } finally {
+      setUser(null);
+      setLoading(false);
+    }
   };
 
   return { user, loading, signOut, signInWithFallback, signUpWithFallback };

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Folder, GitBranch, Search, Trash2, Activity } from "lucide-react";
+import { Folder, GitBranch, Search, Trash2, Activity, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 type ProjectType = "github" | "manual";
@@ -22,7 +22,6 @@ const loadProjects = (): Project[] => {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        // Remove old auto-generated placeholder projects that were injected by a previous version
         const real = parsed.filter(
           (p: Project) => !(PLACEHOLDER_IDS.has(p.id) && PLACEHOLDER_TITLES.has(p.title))
         );
@@ -38,16 +37,59 @@ const loadProjects = (): Project[] => {
   return [];
 };
 
+const ConfirmDeleteDialog = ({
+  project,
+  onConfirm,
+  onCancel,
+}: {
+  project: Project;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+    <div className="relative z-10 glass-card p-6 rounded-2xl w-full max-w-sm mx-4 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+          <AlertTriangle className="w-5 h-5 text-destructive" />
+        </div>
+        <div>
+          <h3 className="font-display font-semibold text-foreground">Delete Project?</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">This action cannot be undone.</p>
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Are you sure you want to remove{" "}
+        <span className="text-foreground font-medium">"{project.title}"</span>?
+        All tracking data for this project will be lost.
+      </p>
+      <div className="flex gap-3">
+        <button
+          onClick={onCancel}
+          className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium glass-card-hover text-foreground transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-destructive text-white hover:brightness-110 transition-all"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const ProjectsManager = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>(loadProjects);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "trackware_projects") {
-        setProjects(loadProjects());
-      }
+      if (e.key === "trackware_projects") setProjects(loadProjects());
     };
     const onCustom = () => setProjects(loadProjects());
     window.addEventListener("storage", onStorage);
@@ -58,9 +100,11 @@ const ProjectsManager = () => {
     };
   }, []);
 
-  const handleDelete = (id: string) => {
-    const updated = projects.filter(p => p.id !== id);
+  const handleDeleteConfirmed = () => {
+    if (!pendingDelete) return;
+    const updated = projects.filter(p => p.id !== pendingDelete.id);
     setProjects(updated);
+    setPendingDelete(null);
     try {
       localStorage.setItem("trackware_projects", JSON.stringify(updated));
     } catch (error) {
@@ -111,7 +155,7 @@ const ProjectsManager = () => {
             <Activity className="w-4 h-4" />
           </button>
           <button
-            onClick={() => handleDelete(project.id)}
+            onClick={() => setPendingDelete(project)}
             className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-destructive/10"
             title="Delete Project"
           >
@@ -123,78 +167,88 @@ const ProjectsManager = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          />
-        </div>
-        <button
-          onClick={() => navigate("/setup")}
-          className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20 whitespace-nowrap"
-        >
-          New Project
-        </button>
-      </div>
-
-      {projects.length > 0 && (
-        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          <div>All projects: {filteredProjects.length}</div>
-          <div>GitHub: {githubProjects.length}</div>
-          <div>Manual: {manualProjects.length}</div>
-        </div>
+    <>
+      {pendingDelete && (
+        <ConfirmDeleteDialog
+          project={pendingDelete}
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
 
-      {filteredProjects.length === 0 ? (
-        <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-xl">
-          <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mb-4">
-            {searchQuery ? <Search className="w-6 h-6 text-muted-foreground" /> : <Folder className="w-6 h-6 text-muted-foreground" />}
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            />
           </div>
-          <h3 className="font-medium text-foreground text-lg">
-            {searchQuery ? "No projects found" : "No projects yet"}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            {searchQuery
-              ? "No projects match your search query."
-              : "Create your first project to start tracking metrics."}
-          </p>
-          {!searchQuery && (
-            <button
-              onClick={() => navigate("/setup")}
-              className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20"
-            >
-              Create your first project
-            </button>
-          )}
+          <button
+            onClick={() => navigate("/setup")}
+            className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20 whitespace-nowrap"
+          >
+            New Project
+          </button>
         </div>
-      ) : (
-        <div className="space-y-8">
-          {githubProjects.length > 0 && (
-            <section>
-              <h2 className="text-lg font-semibold text-foreground mb-4">GitHub Projects</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {githubProjects.map(renderProjectCard)}
-              </div>
-            </section>
-          )}
 
-          {manualProjects.length > 0 && (
-            <section>
-              <h2 className="text-lg font-semibold text-foreground mb-4">Manual Projects</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {manualProjects.map(renderProjectCard)}
-              </div>
-            </section>
-          )}
-        </div>
-      )}
-    </div>
+        {projects.length > 0 && (
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <div>All projects: {filteredProjects.length}</div>
+            <div>GitHub: {githubProjects.length}</div>
+            <div>Manual: {manualProjects.length}</div>
+          </div>
+        )}
+
+        {filteredProjects.length === 0 ? (
+          <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-xl">
+            <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mb-4">
+              {searchQuery ? <Search className="w-6 h-6 text-muted-foreground" /> : <Folder className="w-6 h-6 text-muted-foreground" />}
+            </div>
+            <h3 className="font-medium text-foreground text-lg">
+              {searchQuery ? "No projects found" : "No projects yet"}
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              {searchQuery
+                ? "No projects match your search query."
+                : "Create your first project to start tracking metrics."}
+            </p>
+            {!searchQuery && (
+              <button
+                onClick={() => navigate("/setup")}
+                className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20"
+              >
+                Create your first project
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {githubProjects.length > 0 && (
+              <section>
+                <h2 className="text-lg font-semibold text-foreground mb-4">GitHub Projects</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {githubProjects.map(renderProjectCard)}
+                </div>
+              </section>
+            )}
+
+            {manualProjects.length > 0 && (
+              <section>
+                <h2 className="text-lg font-semibold text-foreground mb-4">Manual Projects</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {manualProjects.map(renderProjectCard)}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

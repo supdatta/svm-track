@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   GitBranch, GitCommit, Star, GitFork, AlertCircle, Users, Code,
   ExternalLink, Loader2, Eye, Tag, Calendar, Clock, GitPullRequest,
   TrendingUp, TrendingDown, CheckCircle, XCircle, BarChart3, Activity,
+  ArrowLeft, Layers,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -123,6 +125,7 @@ const timeAgo = (dateStr: string) => {
 };
 
 const GitHubTracker = () => {
+  const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [data, setData] = useState<GitHubData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -271,6 +274,16 @@ const GitHubTracker = () => {
 
   return (
     <div className="space-y-6">
+      {/* Back to Projects */}
+      <button
+        onClick={() => navigate("/dashboard/projects")}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        <Layers className="w-3.5 h-3.5" />
+        Back to Projects
+      </button>
+
       {/* URL Input */}
       <div className="glass-card p-5">
         <h3 className="text-sm font-medium text-muted-foreground mb-3">Scan a Public GitHub Repository</h3>
