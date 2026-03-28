@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Folder, GitBranch, Search, MoreVertical, Trash2, Edit, ExternalLink, Activity } from "lucide-react";
+import { Folder, GitBranch, Search, Trash2, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 type ProjectType = "github" | "manual";
@@ -13,51 +13,49 @@ interface Project {
   status: "active" | "archived" | "completed";
 }
 
+const PLACEHOLDER_IDS = new Set(["1", "2"]);
+const PLACEHOLDER_TITLES = new Set(["Frontend Refactor", "Q1 Marketing Campaign"]);
+
+const loadProjects = (): Project[] => {
+  try {
+    const stored = localStorage.getItem("trackware_projects");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        // Remove old auto-generated placeholder projects that were injected by a previous version
+        const real = parsed.filter(
+          (p: Project) => !(PLACEHOLDER_IDS.has(p.id) && PLACEHOLDER_TITLES.has(p.title))
+        );
+        if (real.length !== parsed.length) {
+          localStorage.setItem("trackware_projects", JSON.stringify(real));
+        }
+        return real;
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to load projects from localStorage:", error);
+  }
+  return [];
+};
+
 const ProjectsManager = () => {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(loadProjects);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    // Load projects from local storage or use defaults
-    try {
-      const stored = localStorage.getItem("trackware_projects");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProjects(parsed);
-          return;
-        }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "trackware_projects") {
+        setProjects(loadProjects());
       }
-    } catch (error) {
-      console.warn("Failed to load projects from localStorage:", error);
-    }
-
-    // Create default projects if none exist or loading failed
-    const defaultProjects: Project[] = [
-      {
-        id: "1",
-        title: "Frontend Refactor",
-        type: "github",
-        description: "Refactoring the main React application",
-        lastUpdated: new Date().toISOString(),
-        status: "active"
-      },
-      {
-        id: "2",
-        title: "Q1 Marketing Campaign",
-        type: "manual",
-        description: "Manual project tracking for marketing team",
-        lastUpdated: new Date(Date.now() - 86400000).toISOString(),
-        status: "active"
-      }
-    ];
-    setProjects(defaultProjects);
-    try {
-      localStorage.setItem("trackware_projects", JSON.stringify(defaultProjects));
-    } catch (error) {
-      console.warn("Failed to save default projects to localStorage:", error);
-    }
+    };
+    const onCustom = () => setProjects(loadProjects());
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("trackware_projects_updated", onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("trackware_projects_updated", onCustom);
+    };
   }, []);
 
   const handleDelete = (id: string) => {
@@ -70,8 +68,8 @@ const ProjectsManager = () => {
     }
   };
 
-  const filteredProjects = projects.filter(p => 
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredProjects = projects.filter(p =>
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -145,25 +143,31 @@ const ProjectsManager = () => {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-        <div>All projects: {filteredProjects.length}</div>
-        <div>GitHub: {githubProjects.length}</div>
-        <div>Manual: {manualProjects.length}</div>
-      </div>
+      {projects.length > 0 && (
+        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div>All projects: {filteredProjects.length}</div>
+          <div>GitHub: {githubProjects.length}</div>
+          <div>Manual: {manualProjects.length}</div>
+        </div>
+      )}
 
       {filteredProjects.length === 0 ? (
-        <div className="col-span-full py-12 flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-xl">
-          <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-3">
-            <Search className="w-6 h-6 text-muted-foreground" />
+        <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-border rounded-xl">
+          <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mb-4">
+            {searchQuery ? <Search className="w-6 h-6 text-muted-foreground" /> : <Folder className="w-6 h-6 text-muted-foreground" />}
           </div>
-          <h3 className="font-medium text-foreground">No projects found</h3>
+          <h3 className="font-medium text-foreground text-lg">
+            {searchQuery ? "No projects found" : "No projects yet"}
+          </h3>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            {searchQuery ? "We couldn't find any projects matching your search." : "You haven't created any projects yet."}
+            {searchQuery
+              ? "No projects match your search query."
+              : "Create your first project to start tracking metrics."}
           </p>
           {!searchQuery && (
             <button
               onClick={() => navigate("/setup")}
-              className="mt-4 text-primary text-sm font-medium hover:underline"
+              className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20"
             >
               Create your first project
             </button>
@@ -171,27 +175,23 @@ const ProjectsManager = () => {
         </div>
       ) : (
         <div className="space-y-8">
-          <section>
-            <h2 className="text-lg font-semibold text-foreground mb-4">GitHub Projects</h2>
-            {githubProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No GitHub projects found.</p>
-            ) : (
+          {githubProjects.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mb-4">GitHub Projects</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {githubProjects.map(renderProjectCard)}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
-          <section>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Manual Projects</h2>
-            {manualProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No Manual projects found.</p>
-            ) : (
+          {manualProjects.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-foreground mb-4">Manual Projects</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {manualProjects.map(renderProjectCard)}
               </div>
-            )}
-          </section>
+            </section>
+          )}
         </div>
       )}
     </div>

@@ -88,6 +88,7 @@ const ProjectSetup = () => {
     };
     
     localStorage.setItem("trackware_projects", JSON.stringify([...projects, newProject]));
+    window.dispatchEvent(new Event("trackware_projects_updated"));
 
     if (mode === "github") {
       navigate("/dashboard/github", { state: { githubUrl } });
