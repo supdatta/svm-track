@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight, ArrowLeft, GitBranch, PenTool, Users, Plus, Trash2,
-  Activity, BarChart3, Shield, Zap, Sparkles, CheckCircle, Code,
+  Activity, BarChart3, Shield, Zap, Sparkles, CheckCircle, Code, Wand2, Loader2,
 } from "lucide-react";
 
 type Mode = "github" | "manual" | null;
@@ -10,6 +10,8 @@ type Mode = "github" | "manual" | null;
 interface TeamMember {
   name: string;
   role: string;
+  hoursPerWeek: number;
+  aiReasoning?: string;
 }
 
 interface ManualProject {
@@ -20,6 +22,9 @@ interface ManualProject {
   currentWeek: number;
   teamMembers: TeamMember[];
 }
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const FEATURES = [
   {
@@ -56,7 +61,7 @@ const FEATURES = [
 
 const ProjectSetup = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0); // 0: choose mode, 1: details, 2: feature intro
+  const [step, setStep] = useState(0);
   const [mode, setMode] = useState<Mode>(null);
   const [githubUrl, setGithubUrl] = useState("");
   const [project, setProject] = useState<ManualProject>({
@@ -65,28 +70,103 @@ const ProjectSetup = () => {
     totalBudget: 50000,
     totalScheduleWeeks: 12,
     currentWeek: 1,
-    teamMembers: [{ name: "", role: "" }],
+    teamMembers: [{ name: "", role: "", hoursPerWeek: 40 }],
   });
+  const [aiLoading, setAiLoading] = useState<Record<number, boolean>>({});
+  const [aiError, setAiError] = useState<Record<number, string>>({});
 
   const canProceedStep0 = mode !== null;
   const canProceedStep1 = mode === "github"
     ? githubUrl.includes("github.com")
     : project.name.trim().length > 0 && project.teamMembers.some(m => m.name.trim());
 
+  const suggestHours = async (index: number) => {
+    const member = project.teamMembers[index];
+    if (!member.role.trim()) {
+      setAiError(prev => ({ ...prev, [index]: "Please enter a role first." }));
+      return;
+    }
+
+    setAiLoading(prev => ({ ...prev, [index]: true }));
+    setAiError(prev => ({ ...prev, [index]: "" }));
+
+    const otherRoles = project.teamMembers
+      .filter((_, i) => i !== index)
+      .map(m => m.role)
+      .filter(r => r.trim())
+      .join(", ") || "none";
+
+    const prompt = `You are a project management expert. Given the following project context, suggest the appropriate weekly working hours for a team member based on their role and the cost/schedule constraints.
+
+Project Name: ${project.name || "Untitled"}
+Total Budget: $${project.totalBudget.toLocaleString()}
+Schedule Duration: ${project.totalScheduleWeeks} weeks
+Current Week: ${project.currentWeek} of ${project.totalScheduleWeeks}
+Other Team Members' Roles: ${otherRoles}
+Total Team Size: ${project.teamMembers.length}
+
+Team Member Role: "${member.role}"
+
+Consider:
+- The role's typical workload and responsibilities
+- The project budget (divide budget across team size and weeks)
+- Whether this role is typically part-time or full-time in this context
+- Industry standard hours for this role type
+
+Respond with ONLY valid JSON in this exact format (no markdown, no explanation outside JSON):
+{"hoursPerWeek": <number between 1 and 60>, "reasoning": "<one sentence explanation>"}`;
+
+    try {
+      const response = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("Could not parse AI response");
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      const hours = Math.min(60, Math.max(1, Math.round(Number(parsed.hoursPerWeek))));
+
+      setProject(prev => ({
+        ...prev,
+        teamMembers: prev.teamMembers.map((m, i) =>
+          i === index ? { ...m, hoursPerWeek: hours, aiReasoning: parsed.reasoning } : m
+        ),
+      }));
+    } catch (err) {
+      setAiError(prev => ({
+        ...prev,
+        [index]: "Failed to get suggestion. You can set hours manually.",
+      }));
+    } finally {
+      setAiLoading(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
   const handleFinish = () => {
-    // Save to local storage for ProjectsManager
     const existing = localStorage.getItem("trackware_projects");
     const projects = existing ? JSON.parse(existing) : [];
-    
+
     const newProject = {
       id: Date.now().toString(),
       title: mode === "github" ? (githubUrl.split("/").pop() || "GitHub Project") : project.name,
       type: mode,
       description: mode === "github" ? `GitHub Repository: ${githubUrl}` : project.description,
       lastUpdated: new Date().toISOString(),
-      status: "active"
+      status: "active",
     };
-    
+
     localStorage.setItem("trackware_projects", JSON.stringify([...projects, newProject]));
     window.dispatchEvent(new Event("trackware_projects_updated"));
 
@@ -100,7 +180,7 @@ const ProjectSetup = () => {
   const addTeamMember = () => {
     setProject(prev => ({
       ...prev,
-      teamMembers: [...prev.teamMembers, { name: "", role: "" }],
+      teamMembers: [...prev.teamMembers, { name: "", role: "", hoursPerWeek: 40 }],
     }));
   };
 
@@ -109,13 +189,20 @@ const ProjectSetup = () => {
       ...prev,
       teamMembers: prev.teamMembers.filter((_, i) => i !== index),
     }));
+    setAiLoading(prev => { const n = { ...prev }; delete n[index]; return n; });
+    setAiError(prev => { const n = { ...prev }; delete n[index]; return n; });
   };
 
-  const updateTeamMember = (index: number, field: keyof TeamMember, value: string) => {
+  const updateTeamMember = (index: number, field: keyof TeamMember, value: string | number) => {
     setProject(prev => ({
       ...prev,
-      teamMembers: prev.teamMembers.map((m, i) => i === index ? { ...m, [field]: value } : m),
+      teamMembers: prev.teamMembers.map((m, i) =>
+        i === index ? { ...m, [field]: value, ...(field === "role" ? { aiReasoning: undefined } : {}) } : m
+      ),
     }));
+    if (field === "role") {
+      setAiError(prev => ({ ...prev, [index]: "" }));
+    }
   };
 
   return (
@@ -192,7 +279,7 @@ const ProjectSetup = () => {
           </div>
         )}
 
-        {/* Step 1: Details */}
+        {/* Step 1: GitHub */}
         {step === 1 && mode === "github" && (
           <div className="max-w-xl mx-auto animate-fade-up">
             <div className="text-center mb-8">
@@ -213,6 +300,7 @@ const ProjectSetup = () => {
           </div>
         )}
 
+        {/* Step 1: Manual */}
         {step === 1 && mode === "manual" && (
           <div className="max-w-2xl mx-auto animate-fade-up">
             <div className="text-center mb-8">
@@ -278,30 +366,74 @@ const ProjectSetup = () => {
               {/* Team Members */}
               <div className="glass-card p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-foreground">Team Members</h3>
+                  <div>
+                    <h3 className="text-sm font-medium text-foreground">Team Members</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Enter a role and click the AI button to get suggested weekly hours.
+                    </p>
+                  </div>
                   <button onClick={addTeamMember} className="text-xs text-primary hover:text-primary/80 flex items-center gap-1">
                     <Plus className="w-3 h-3" /> Add Member
                   </button>
                 </div>
-                <div className="space-y-3">
+
+                <div className="space-y-4">
                   {project.teamMembers.map((member, i) => (
-                    <div key={i} className="flex gap-3 items-center">
-                      <input
-                        value={member.name}
-                        onChange={(e) => updateTeamMember(i, "name", e.target.value)}
-                        placeholder="Name"
-                        className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                      <input
-                        value={member.role}
-                        onChange={(e) => updateTeamMember(i, "role", e.target.value)}
-                        placeholder="Role (e.g. Lead, Backend)"
-                        className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                      {project.teamMembers.length > 1 && (
-                        <button onClick={() => removeTeamMember(i)} className="text-muted-foreground hover:text-destructive p-1">
-                          <Trash2 className="w-4 h-4" />
+                    <div key={i} className="space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          value={member.name}
+                          onChange={(e) => updateTeamMember(i, "name", e.target.value)}
+                          placeholder="Name"
+                          className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <input
+                          value={member.role}
+                          onChange={(e) => updateTeamMember(i, "role", e.target.value)}
+                          placeholder="Role (e.g. Lead, Backend)"
+                          className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={member.hoursPerWeek}
+                            onChange={(e) => updateTeamMember(i, "hoursPerWeek", Number(e.target.value))}
+                            title="Hours per week"
+                            className="w-16 bg-secondary border border-border rounded-lg px-2 py-2 text-sm text-foreground text-center focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">hrs/wk</span>
+                        </div>
+                        <button
+                          onClick={() => suggestHours(i)}
+                          disabled={aiLoading[i] || !member.role.trim()}
+                          title="AI: Suggest hours based on role"
+                          className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                        >
+                          {aiLoading[i]
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Wand2 className="w-4 h-4" />
+                          }
                         </button>
+                        {project.teamMembers.length > 1 && (
+                          <button onClick={() => removeTeamMember(i)} className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* AI Reasoning */}
+                      {member.aiReasoning && (
+                        <div className="ml-1 flex items-start gap-1.5 text-xs text-primary/70 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                          <Sparkles className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                          <span>{member.aiReasoning}</span>
+                        </div>
+                      )}
+
+                      {/* AI Error */}
+                      {aiError[i] && (
+                        <p className="ml-1 text-xs text-destructive">{aiError[i]}</p>
                       )}
                     </div>
                   ))}
