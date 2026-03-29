@@ -47,30 +47,32 @@ const SPMDashboard = () => {
   const passedProject = (location.state as any)?.project;
 
   const [project] = useState(() => ({
-    name: passedProject?.name || "My Project",
+    name: passedProject?.name || passedProject?.title || "My Project",
     description: passedProject?.description || "",
     totalBudget: passedProject?.totalBudget || 120000,
     totalScheduleWeeks: passedProject?.totalScheduleWeeks || 24,
     currentWeek: passedProject?.currentWeek || 14,
     teamSize: passedProject?.teamMembers?.length || 5,
+    actualCostSpent: passedProject?.actualCostSpent ?? null,
+    percentComplete: passedProject?.percentComplete ?? null,
+    extraBudgetRequested: passedProject?.extraBudgetRequested ?? 0,
   }));
 
-  const teamMembers = passedProject?.teamMembers?.filter((m: any) => m.name.trim()) || [
-    { name: "Team Member 1", role: "Lead" },
-    { name: "Team Member 2", role: "Backend" },
-    { name: "Team Member 3", role: "Frontend" },
-  ];
+  const teamMembers = passedProject?.teamMembers?.filter((m: any) => m.name?.trim()) || [];
 
-  // Core EV metrics
+  // Core EV metrics — use real values if provided, else estimate
   const [ev, setEv] = useState(() => {
     const progress = project.currentWeek / project.totalScheduleWeeks;
     const pv = Math.round(project.totalBudget * progress);
-    const evVal = Math.round(pv * 0.9);
-    const ac = Math.round(pv * 0.97);
+    // If user entered % complete, use it to calculate EV; else estimate at 90% of PV
+    const pctDone = project.percentComplete !== null ? project.percentComplete / 100 : progress * 0.9;
+    const evVal = Math.round(project.totalBudget * pctDone);
+    // Use actual cost if provided, else estimate at 97% of PV
+    const ac = project.actualCostSpent !== null ? project.actualCostSpent : Math.round(pv * 0.97);
     return {
       pv, ev: evVal, ac,
-      spi: +(evVal / pv).toFixed(2),
-      cpi: +(evVal / ac).toFixed(2),
+      spi: pv > 0 ? +(evVal / pv).toFixed(2) : 1,
+      cpi: ac > 0 ? +(evVal / ac).toFixed(2) : 1,
       scheduleVariance: evVal - pv,
       costVariance: evVal - ac,
     };
