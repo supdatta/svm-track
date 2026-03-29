@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Activity, GitBranch, BarChart3, Settings, Plus, Layers } from "lucide-react";
+import { GitBranch, BarChart3, Settings, Plus, Layers } from "lucide-react";
 
 const navItems = [
   { icon: Layers, label: "Projects", path: "/dashboard/projects" },
@@ -14,8 +14,15 @@ const DashboardSidebar = () => {
   return (
     <aside className="w-64 shrink-0 h-screen sticky top-0 border-r border-border bg-sidebar flex flex-col">
       <Link to="/" className="flex items-center gap-3 px-6 h-16 border-b border-border">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-lime-sm">
-          <Activity className="w-4 h-4 text-primary-foreground" />
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-lime-sm flex-shrink-0">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-4.5 h-4.5">
+            <rect x="2" y="4" width="8" height="2.5" rx="1.25" fill="#0a0a0a"/>
+            <rect x="2" y="8.75" width="12" height="2.5" rx="1.25" fill="#0a0a0a"/>
+            <rect x="2" y="13.5" width="6" height="2.5" rx="1.25" fill="#0a0a0a"/>
+            <circle cx="16" cy="5.25" r="1.5" fill="#0a0a0a" opacity="0.5"/>
+            <circle cx="16" cy="10" r="1.5" fill="#0a0a0a" opacity="0.5"/>
+            <circle cx="16" cy="14.75" r="1.5" fill="#0a0a0a" opacity="0.5"/>
+          </svg>
         </div>
         <span className="font-display font-bold text-lg text-foreground">
           <span className="text-primary">trackware</span>

@@ -5,6 +5,7 @@ import {
   Activity, BarChart3, Shield, Zap, Sparkles, CheckCircle, Code, Wand2, Loader2,
   DollarSign, Clock, TrendingUp,
 } from "lucide-react";
+import TrackwareLogo from "@/components/Logo";
 
 type Mode = "github" | "manual" | null;
 
@@ -178,9 +179,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation o
 
       <div className="relative z-10 container mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-lime-sm">
-            <Activity className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <TrackwareLogo size={8} />
           <span className="font-display font-bold text-lg text-primary">trackware</span>
         </div>
 

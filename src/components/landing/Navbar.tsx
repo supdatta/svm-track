@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { Activity, ArrowRight, Menu } from "lucide-react";
+import { ArrowRight, Menu } from "lucide-react";
 import { useState } from "react";
+import TrackwareLogo from "@/components/Logo";
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -9,9 +10,7 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/60 backdrop-blur-xl">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-lime-sm">
-            <Activity className="w-4 h-4 text-primary-foreground" />
-          </div>
+          <TrackwareLogo size={8} />
           <span className="font-display font-bold text-lg text-foreground">
             <span className="text-primary">trackware</span>
           </span>

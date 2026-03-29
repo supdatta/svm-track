@@ -4,7 +4,7 @@ import SPMDashboard from "@/components/dashboard/SPMDashboard";
 import ProjectsManager from "@/components/dashboard/ProjectsManager";
 import { DashboardProvider } from "@/contexts/DashboardContext";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Activity, LayoutDashboard, Settings, Moon, Sun, Bell, BellOff, GitBranch, BarChart3, Layers, ArrowLeft } from "lucide-react";
+import { Settings, Bell, BellOff, GitBranch, BarChart3, Layers, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 
 const pageConfig: Record<string, { title: string; description: string; icon: React.ElementType }> = {
@@ -21,7 +21,6 @@ const Dashboard = () => {
   const activePage = pageConfig[activePath] || pageConfig["/dashboard/github"];
 
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
 
   const settingsContent = (
     <div className="space-y-6">
@@ -37,17 +36,6 @@ const Dashboard = () => {
             </div>
             <div className={`ml-auto w-10 h-6 rounded-full p-0.5 transition-colors ${notifications ? "bg-primary" : "bg-muted"}`}>
               <div className={`w-5 h-5 rounded-full bg-background transition-transform ${notifications ? "translate-x-4" : "translate-x-0"}`} />
-            </div>
-          </button>
-          <button onClick={() => setDarkMode(!darkMode)}
-            className={`glass-card-hover px-5 py-4 text-left flex items-center gap-4 transition-all ${darkMode ? "border-primary/30" : ""}`}>
-            {darkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-health-amber" />}
-            <div>
-              <div className="text-sm font-medium text-foreground">Appearance</div>
-              <div className="text-xs text-muted-foreground">{darkMode ? "Dark mode" : "Light mode"}</div>
-            </div>
-            <div className={`ml-auto w-10 h-6 rounded-full p-0.5 transition-colors ${darkMode ? "bg-primary" : "bg-muted"}`}>
-              <div className={`w-5 h-5 rounded-full bg-background transition-transform ${darkMode ? "translate-x-4" : "translate-x-0"}`} />
             </div>
           </button>
         </div>

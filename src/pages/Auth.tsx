@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Activity, Mail, Lock, User, ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
+import TrackwareLogo from "@/components/Logo";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -49,9 +50,7 @@ const Auth = () => {
       <div className="hidden lg:flex flex-col justify-between w-1/2 relative p-12">
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-3 mb-20">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-lime">
-              <Activity className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <TrackwareLogo size={10} />
             <span className="font-display font-bold text-2xl text-foreground">
               <span className="text-primary">trackware</span>
             </span>
@@ -99,9 +98,7 @@ const Auth = () => {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <Link to="/" className="flex items-center gap-3 justify-center mb-10 lg:hidden">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-lime">
-              <Activity className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <TrackwareLogo size={10} />
             <span className="font-display font-bold text-2xl text-foreground">
               <span className="text-primary">trackware</span>
             </span>
